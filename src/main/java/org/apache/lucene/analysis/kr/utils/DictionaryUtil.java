@@ -21,57 +21,95 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.io.File;
+
+import org.apache.commons.io.monitor.FileAlterationListener;
+import org.apache.commons.io.monitor.FileAlterationListenerAdaptor;
+import org.apache.commons.io.monitor.FileAlterationMonitor;
+import org.apache.commons.io.monitor.FileAlterationObserver;
 
 import org.apache.lucene.analysis.kr.morph.CompoundEntry;
 import org.apache.lucene.analysis.kr.morph.MorphException;
 import org.apache.lucene.analysis.kr.morph.WordEntry;
 
 public class DictionaryUtil {
-	
+
 	private static Trie<String,WordEntry> dictionary;
-	
+
 	private static HashMap josas;
-	
+
 	private static HashMap eomis;
-	
+
 	private static HashMap prefixs;
-	
+
 	private static HashMap suffixs;
-	
+
 	private static HashMap<String,WordEntry> uncompounds;
-	
+
 	private static HashMap<String, String> cjwords;
-	
+
+	private static FileAlterationMonitor monitor;
+
 	/**
 	 * 사전을 로드한다.
 	 */
 	public synchronized static void loadDictionary() throws MorphException {
-		
+
+		// monitor file change every 30 seconds
+		final long pollingInterval = 30 * 1000;
+
+		// wait file modification end
+		final long delayfilemodify = 5 * 1000;
+
 		dictionary = new Trie<String, WordEntry>(true);
 		List<String> strList = null;
 		List<String> compounds = null;
 		try {
 			strList = FileUtil.readLines(KoreanEnv.getInstance().getValue(KoreanEnv.FILE_DICTIONARY),"UTF-8");
 			strList.addAll(FileUtil.readLines(KoreanEnv.getInstance().getValue(KoreanEnv.FILE_EXTENSION),"UTF-8"));
-			compounds = FileUtil.readLines(KoreanEnv.getInstance().getValue(KoreanEnv.FILE_COMPOUNDS),"UTF-8");			
-		} catch (IOException e) {			
+			compounds = FileUtil.readLines(KoreanEnv.getInstance().getValue(KoreanEnv.FILE_COMPOUNDS),"UTF-8");
+
+			if (monitor == null) {
+				File jarPath = new File(KoreanEnv.class.getProtectionDomain().getCodeSource().getLocation().getPath());
+				File folder = new File(jarPath.getParentFile().getAbsolutePath() + "/dic");
+				if (folder != null && folder.exists()) {
+					FileAlterationObserver observer = new FileAlterationObserver(folder);
+					monitor = new FileAlterationMonitor(pollingInterval);
+					FileAlterationListener listener = new FileAlterationListenerAdaptor() {
+						@Override
+						public void onFileChange(File file) {
+							try {
+								Thread.sleep(delayfilemodify);
+								dictionary = null;
+							} catch (InterruptedException e) {
+								new MorphException(e.getMessage(),e);
+							}
+						}
+					};
+
+					observer.addListener(listener);
+					monitor.addObserver(observer);
+					monitor.start();
+				}
+			}
+		} catch (IOException e) {
 			new MorphException(e.getMessage(),e);
 		} catch (Exception e) {
 			new MorphException(e.getMessage(),e);
 		}
 		if(strList==null) throw new MorphException("dictionary is null");;
-		
+
 		for(String str:strList) {
 			String[] infos = StringUtil.split(str,",");
 			if(infos.length!=2) continue;
 			infos[1] = infos[1].trim();
 			if(infos[1].length()==6) infos[1] = infos[1].substring(0,5)+"000"+infos[1].substring(5);
-			
+
 			WordEntry entry = new WordEntry(infos[0].trim(),infos[1].trim().toCharArray());
 			dictionary.add(entry.getWord(), entry);
 		}
-		
-		for(String compound: compounds) {		
+
+		for(String compound: compounds) {
 			String[] infos = StringUtil.split(compound,":");
 			if(infos.length!=2) continue;
 			WordEntry entry = new WordEntry(infos[0].trim(),"20000000X".toCharArray());
@@ -79,38 +117,38 @@ public class DictionaryUtil {
 			dictionary.add(entry.getWord(), entry);
 		}
 	}
-	
+
 	public static Iterator findWithPrefix(String prefix) throws MorphException {
 		if(dictionary==null) loadDictionary();
 		return dictionary.getPrefixedBy(prefix);
 	}
 
-	public static WordEntry getWord(String key) throws MorphException {		
+	public static WordEntry getWord(String key) throws MorphException {
 		if(dictionary==null) loadDictionary();
 		if(key.length()==0) return null;
-		
+
 		return (WordEntry)dictionary.get(key);
 	}
-	
-	public static WordEntry getWordExceptVerb(String key) throws MorphException {		
-		WordEntry entry = getWord(key);		
+
+	public static WordEntry getWordExceptVerb(String key) throws MorphException {
+		WordEntry entry = getWord(key);
 		if(entry==null) return null;
-		
+
 		if(entry.getFeature(WordEntry.IDX_NOUN)=='1'||
 				entry.getFeature(WordEntry.IDX_BUSA)=='1') return entry;
 		return null;
 	}
-	
-	public static WordEntry getNoun(String key) throws MorphException {	
+
+	public static WordEntry getNoun(String key) throws MorphException {
 
 		WordEntry entry = getWord(key);
 		if(entry==null) return null;
-		
+
 		if(entry.getFeature(WordEntry.IDX_NOUN)=='1') return entry;
 		return null;
 	}
-	
-	public static WordEntry getCNoun(String key) throws MorphException {	
+
+	public static WordEntry getCNoun(String key) throws MorphException {
 
 		WordEntry entry = getWord(key);
 		if(entry==null) return null;
@@ -118,10 +156,10 @@ public class DictionaryUtil {
 		if(entry.getFeature(WordEntry.IDX_NOUN)=='1' || entry.getFeature(WordEntry.IDX_NOUN)=='2') return entry;
 		return null;
 	}
-	
+
 	public static WordEntry getVerb(String key) throws MorphException {
-		
-		WordEntry entry = getWord(key);	
+
+		WordEntry entry = getWord(key);
 		if(entry==null) return null;
 
 		if(entry.getFeature(WordEntry.IDX_VERB)=='1') {
@@ -129,7 +167,7 @@ public class DictionaryUtil {
 		}
 		return null;
 	}
-	
+
 	public static WordEntry getAdverb(String key) throws MorphException {
 		WordEntry entry = getWord(key);
 		if(entry==null) return null;
@@ -137,7 +175,7 @@ public class DictionaryUtil {
 		if(entry.getFeature(WordEntry.IDX_BUSA)=='1') return entry;
 		return null;
 	}
-	
+
 	public static WordEntry getBusa(String key) throws MorphException {
 		WordEntry entry = getWord(key);
 		if(entry==null) return null;
@@ -145,7 +183,7 @@ public class DictionaryUtil {
 		if(entry.getFeature(WordEntry.IDX_BUSA)=='1'&&entry.getFeature(WordEntry.IDX_NOUN)=='0') return entry;
 		return null;
 	}
-	
+
 	public static WordEntry getIrrVerb(String key, char irrType) throws MorphException {
 		WordEntry entry = getWord(key);
 		if(entry==null) return null;
@@ -154,71 +192,71 @@ public class DictionaryUtil {
 				entry.getFeature(WordEntry.IDX_REGURA)==irrType) return entry;
 		return null;
 	}
-	
+
 	public static WordEntry getBeVerb(String key) throws MorphException {
 		WordEntry entry = getWord(key);
 		if(entry==null) return null;
-		
+
 		if(entry.getFeature(WordEntry.IDX_BEV)=='1') return entry;
 		return null;
 	}
-	
+
 	public static WordEntry getDoVerb(String key) throws MorphException {
 		WordEntry entry = getWord(key);
 		if(entry==null) return null;
-		
+
 		if(entry.getFeature(WordEntry.IDX_DOV)=='1') return entry;
 		return null;
 	}
-	
+
 	public static WordEntry getUncompound(String key) throws MorphException {
-		
+
 		try {
 			if(uncompounds==null) {
 				uncompounds = new HashMap();
-				List<String> lines = FileUtil.readLines(KoreanEnv.getInstance().getValue(KoreanEnv.FILE_UNCOMPOUNDS),"UTF-8");	
-				for(String compound: lines) {		
+				List<String> lines = FileUtil.readLines(KoreanEnv.getInstance().getValue(KoreanEnv.FILE_UNCOMPOUNDS),"UTF-8");
+				for(String compound: lines) {
 					String[] infos = StringUtil.split(compound,":");
 					if(infos.length!=2) continue;
 					WordEntry entry = new WordEntry(infos[0].trim(),"90000X".toCharArray());
 					entry.setCompounds(compoundArrayToList(infos[1], StringUtil.split(infos[1],",")));
 					uncompounds.put(entry.getWord(), entry);
-				}			
-			}	
+				}
+			}
 		}catch(Exception e) {
 			throw new MorphException(e);
 		}
 		return uncompounds.get(key);
 	}
-	
+
 	public static String getCJWord(String key) throws MorphException {
-		
+
 		try {
 			if(cjwords==null) {
 				cjwords = new HashMap();
-				List<String> lines = FileUtil.readLines(KoreanEnv.getInstance().getValue(KoreanEnv.FILE_CJ),"UTF-8");	
-				for(String cj: lines) {		
+				List<String> lines = FileUtil.readLines(KoreanEnv.getInstance().getValue(KoreanEnv.FILE_CJ),"UTF-8");
+				for(String cj: lines) {
 					String[] infos = StringUtil.split(cj,":");
 					if(infos.length!=2) continue;
 					cjwords.put(infos[0], infos[1]);
-				}			
-			}	
+				}
+			}
 		}catch(Exception e) {
 			throw new MorphException(e);
 		}
 		return cjwords.get(key);
-		
+
 	}
-	
+
 	public static boolean existJosa(String str) throws MorphException {
 		if(josas==null) {
 			josas = new HashMap();
 			readFile(josas,KoreanEnv.FILE_JOSA);
-		}	
+		}
 		if(josas.get(str)==null) return false;
 		else return true;
 	}
-	
+
 	public static boolean existEomi(String str)  throws MorphException {
 		if(eomis==null) {
 			eomis = new HashMap();
@@ -228,7 +266,7 @@ public class DictionaryUtil {
 		if(eomis.get(str)==null) return false;
 		else return true;
 	}
-	
+
 	public static boolean existPrefix(String str)  throws MorphException {
 		if(prefixs==null) {
 			prefixs = new HashMap();
@@ -238,7 +276,7 @@ public class DictionaryUtil {
 		if(prefixs.get(str)==null) return false;
 		else return true;
 	}
-	
+
 	public static boolean existSuffix(String str)  throws MorphException {
 		if(suffixs==null) {
 			suffixs = new HashMap();
@@ -246,10 +284,10 @@ public class DictionaryUtil {
 		}
 
 		if(suffixs.get(str)!=null) return true;
-		
+
 		return false;
 	}
-	
+
 	/**
 	 * ㄴ,ㄹ,ㅁ,ㅂ과 eomi 가 결합하여 어미가 될 수 있는지 점검한다.
 	 * @param s
@@ -257,7 +295,7 @@ public class DictionaryUtil {
 	 * @return
 	 */
 	public static String combineAndEomiCheck(char s, String eomi) throws MorphException {
-	
+
 		if(eomi==null) eomi="";
 
 		if(s=='ㄴ') eomi = "은"+eomi;
@@ -266,20 +304,20 @@ public class DictionaryUtil {
 		else if(s=='ㅂ') eomi = "습"+eomi;
 		else eomi = s+eomi;
 
-		if(existEomi(eomi)) return eomi;		
+		if(existEomi(eomi)) return eomi;
 
 		return null;
-		
+
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @param map
 	 * @param type	1: josa, 2: eomi
 	 * @throws MorphException
 	 */
-	private static synchronized void readFile(HashMap map, String dic) throws MorphException {		
-		
+	private static synchronized void readFile(HashMap map, String dic) throws MorphException {
+
 		String path = KoreanEnv.getInstance().getValue(dic);
 
 		try{
@@ -293,7 +331,7 @@ public class DictionaryUtil {
  		    throw new MorphException(e.getMessage(),e);
 		}
 	}
-	
+
 	private static List compoundArrayToList(String source, String[] arr) {
 		List list = new ArrayList();
 		for(String str: arr) {
@@ -304,4 +342,3 @@ public class DictionaryUtil {
 		return list;
 	}
 }
-
