@@ -115,7 +115,7 @@ public class KoreanEnv {
 	/**
 	 * Given a property file name, load the property file and return an object
 	 * representing the property values.
-	 * 
+	 *
 	 * @param propertyFile
 	 *            The name of the property file to load.
 	 * @param def
@@ -132,7 +132,14 @@ public class KoreanEnv {
 
 		File file = null;
 		try {
-			file = FileUtil.getClassLoaderFile(FILE_KOREAN_PROPERTY);
+			// TODO : may error occurs when path contains special char
+			File jarPath = new File(KoreanEnv.class.getProtectionDomain().getCodeSource().getLocation().getPath());
+			String propertiesPath = jarPath.getParentFile().getAbsolutePath();
+			file = new File(propertiesPath + "/korean.properties");
+			if (file == null) {
+					file = FileUtil.getClassLoaderFile(FILE_KOREAN_PROPERTY);
+			}
+
 			if (file != null) {
 				properties.load(new FileInputStream(file));
 				return properties;
@@ -150,7 +157,7 @@ public class KoreanEnv {
 
 	/**
 	 * Returns the value of a property.
-	 * 
+	 *
 	 * @param name
 	 *            The name of the property whose value is to be retrieved.
 	 * @return The value of the property.

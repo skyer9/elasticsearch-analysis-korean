@@ -34,16 +34,16 @@ import org.apache.lucene.analysis.kr.morph.MorphException;
 
 /**
  * file utility class
- * 
+ *
  * @author S.M.Lee
- * 
+ *
  */
 public class FileUtil {
 
 	/**
 	 * Given a file name for a file that is located somewhere in the application
 	 * classpath, return a File object representing the file.
-	 * 
+	 *
 	 * @param filename
 	 *            The name of the file (relative to the classpath) that is to be
 	 *            retrieved.
@@ -77,7 +77,7 @@ public class FileUtil {
 	/**
 	 * Reads the contents of a file line by line to a List of Strings. The file
 	 * is always closed.
-	 * 
+	 *
 	 * @param file
 	 *            the file to read, must not be <code>null</code>
 	 * @param encoding
@@ -103,7 +103,7 @@ public class FileUtil {
 	/**
 	 * Reads the contents of a file line by line to a List of Strings. The file
 	 * is always closed.
-	 * 
+	 *
 	 * @param file
 	 *            the file to read, must not be <code>null</code>
 	 * @param encoding
@@ -121,8 +121,11 @@ public class FileUtil {
 			throws MorphException, IOException {
 		InputStream in = null;
 		try {
+			File file = new File(fName);
+			if (file == null || file.exists() != true) {
+				file = getClassLoaderFile(fName);
+			}
 
-			File file = getClassLoaderFile(fName);
 			if (file != null && file.exists()) {
 				in = openInputStream(file);
 			} else {
@@ -147,7 +150,7 @@ public class FileUtil {
 	 * An exception is thrown if the file does not exist. An exception is thrown
 	 * if the file object exists but is a directory. An exception is thrown if
 	 * the file exists but cannot be read.
-	 * 
+	 *
 	 * @param file
 	 *            the file to open for input, must not be <code>null</code>
 	 * @return a new {@link FileInputStream} for the specified file
@@ -183,7 +186,7 @@ public class FileUtil {
 	 * <p>
 	 * This method buffers the input internally, so there is no need to use a
 	 * <code>BufferedInputStream</code>.
-	 * 
+	 *
 	 * @param input
 	 *            the <code>InputStream</code> to read from, not null
 	 * @return the list of Strings, never null
@@ -207,7 +210,7 @@ public class FileUtil {
 	 * <p>
 	 * This method buffers the input internally, so there is no need to use a
 	 * <code>BufferedInputStream</code>.
-	 * 
+	 *
 	 * @param input
 	 *            the <code>InputStream</code> to read from, not null
 	 * @param encoding
@@ -235,7 +238,7 @@ public class FileUtil {
 	 * <p>
 	 * This method buffers the input internally, so there is no need to use a
 	 * <code>BufferedReader</code>.
-	 * 
+	 *
 	 * @param input
 	 *            the <code>Reader</code> to read from, not null
 	 * @return the list of Strings, never null
@@ -261,7 +264,7 @@ public class FileUtil {
 	 * <p>
 	 * Equivalent to {@link InputStream#close()}, except any exceptions will be
 	 * ignored. This is typically used in finally blocks.
-	 * 
+	 *
 	 * @param input
 	 *            the InputStream to close, may be null or already closed
 	 */
@@ -282,7 +285,7 @@ public class FileUtil {
 	 * From version 1.1 this method will decode the URL. Syntax such as
 	 * <code>file:///my%20docs/file.txt</code> will be correctly decoded to
 	 * <code>/my docs/file.txt</code>.
-	 * 
+	 *
 	 * @param url
 	 *            the file URL to convert, <code>null</code> returns
 	 *            <code>null</code>
@@ -312,7 +315,7 @@ public class FileUtil {
 	// -----------------------------------------------------------------------
 	/**
 	 * Reads the contents of a file into a String. The file is always closed.
-	 * 
+	 *
 	 * @param file
 	 *            the file to read, must not be <code>null</code>
 	 * @param encoding
